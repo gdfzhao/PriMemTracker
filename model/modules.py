@@ -278,10 +278,14 @@ class KeyProjection(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self, val_dim, hidden_dim):
+    def __init__(self, val_dim, hidden_dim, config):
         super().__init__()
-
+        self.config = config
         self.fuser = FeatureFusionBlock(1024, val_dim+hidden_dim, 512, 512)
+        if config['use_pixel_decoder']:
+            self.fuser_x_16 = FeatureFusionBlock(256, 512, 512, 512)
+            self.fuser_x_8 = FeatureFusionBlock(256, 256, 256, 256)
+            self.fuser_x_4 = FeatureFusionBlock(256, 256, 256, 256)
         if hidden_dim > 0:
             self.hidden_update = HiddenUpdater([512, 256, 256+1], 256, hidden_dim)
         else:
@@ -292,16 +296,24 @@ class Decoder(nn.Module):
 
         self.pred = nn.Conv2d(256, 1, kernel_size=3, padding=1, stride=1)
 
-    def forward(self, f16, f8, f4, hidden_state, memory_readout, h_out=True):
+    def forward(self, f16, f8, f4, hidden_state, memory_readout, h_out=True, pixel_decoder_features=None):
         batch_size, num_objects = memory_readout.shape[:2]
 
+        # import pdb
+        # pdb.set_trace()
         if self.hidden_update is not None:
             g16 = self.fuser(f16, torch.cat([memory_readout, hidden_state], 2))
         else:
             g16 = self.fuser(f16, memory_readout)
 
-        g8 = self.up_16_8(f8, g16)
-        g4 = self.up_8_4(f4, g8)
+        if self.config['use_pixel_decoder']:
+            g16 = self.fuser_x_16(pixel_decoder_features[1], g16)
+            g8 = self.fuser_x_8(pixel_decoder_features[2], self.up_16_8(f8, g16))
+            g4 = self.fuser_x_4(pixel_decoder_features[3], self.up_8_4(f4, g8))
+
+        else:
+            g8 = self.up_16_8(f8, g16)
+            g4 = self.up_8_4(f4, g8)
         logits = self.pred(F.relu(g4.flatten(start_dim=0, end_dim=1)))
 
         if h_out and self.hidden_update is not None:

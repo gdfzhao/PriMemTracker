@@ -202,7 +202,7 @@ for si, stage in enumerate(stages_to_perform):
     elif stage == '4':
         max_skip_values = [10, 15, 5, 5]
         increase_skip_fraction = [0.1, 0.3, 0.8, 100]
-        ovis_root = path.join(path.expanduser(config['ovis_root']), 'train')
+        ovis_root = path.join(path.expanduser(config['ovis_root']), 'train_480p')
 
         train_sampler, train_loader = renew_ovis_loader(5)
         renew_loader = renew_ovis_loader

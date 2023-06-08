@@ -38,6 +38,7 @@ class XMem(nn.Module):
         super().__init__()
         model_weights = self.init_hyperparameters(config, model_path, map_location)
         self._is_train = config.get('train', False)
+        self.config = config
         self.single_object = config.get('single_object', False)
         print(f'Single object mode: {self.single_object}')
         self.expand_mask = config.get('expand_mask', False)
@@ -49,8 +50,10 @@ class XMem(nn.Module):
             self.key_encoder = KeyEncoder()
             # Projection from f16 feature space to key/value space
             self.key_proj = KeyProjection(1024, self.key_dim)
+        if not config['share_backbone']:
+            self.key_encoder = KeyEncoder()
 
-        self.decoder = Decoder(self.value_dim, self.hidden_dim)
+        self.decoder = Decoder(self.value_dim, self.hidden_dim, self.config)
 
         if model_weights is not None:
             self.load_weights(model_weights, init_as_zero_if_needed=True)
@@ -139,8 +142,11 @@ class XMem(nn.Module):
         else:
             raise NotImplementedError
 
-        # f16, f8, f4 = self.key_encoder(frame)
-        f16, f8, f4 = features['res4'], features['res3'], features['res2']
+        # whether share backbone
+        if self.config['share_backbone']:
+            f16, f8, f4 = features['res4'], features['res3'], features['res2']
+        else:
+            f16, f8, f4 = self.key_encoder(frame)
         # ^2 + 1
         shrinkage = self.d_proj(f16) ** 2 + 1 if need_sk else None
         # [0, 1], like attention
@@ -255,10 +261,12 @@ class XMem(nn.Module):
 
         return memory
 
-    def segment(self, multi_scale_features, memory_readout,
+    def segment(self, multi_scale_features, pixel_decoder_features, memory_readout,
                     hidden_state, selector=None, h_out=True, strip_bg=True):
+        use_pixel_decoder = self.config.get('use_pixel_decoder', False)
 
-        hidden_state, logits = self.decoder(*multi_scale_features, hidden_state, memory_readout, h_out=h_out)
+        hidden_state, logits = self.decoder(*multi_scale_features, hidden_state, memory_readout, h_out=h_out,
+                                            pixel_decoder_features=pixel_decoder_features)
         prob = torch.sigmoid(logits)
         if selector is not None:
             prob = prob * selector
@@ -380,8 +388,8 @@ class MaskFormerHead(nn.Module):
         transformer_enc_layers = 4
         conv_dim = 256
         mask_dim = 256
-        transformer_in_features = ["res3", "res4", "res5"]  # ["res3", "res4", "res5"]
-
+        transformer_in_features = ["res2", "res3", "res4", "res5"] if cfg['use_pixel_decoder'] else ["res3", "res4", "res5"]
+        num_feature_levels = 4 if cfg['use_pixel_decoder'] else 3
         pixel_decoder = MSDeformAttnPixelDecoder(input_shape,
                                                  transformer_dropout,
                                                  transformer_nheads,
@@ -390,7 +398,8 @@ class MaskFormerHead(nn.Module):
                                                  conv_dim,
                                                  mask_dim,
                                                  transformer_in_features,
-                                                 common_stride)
+                                                 common_stride,
+                                                 num_feature_levels)
         return pixel_decoder
 
     def predictor_init(self, cfg):
@@ -405,6 +414,7 @@ class MaskFormerHead(nn.Module):
         mask_dim = 256
         enforce_input_project = False
         mask_classification = True
+        num_feature_levels = 4 if cfg['use_pixel_decoder'] else 3
         predictor = MultiScaleMaskedTransformerDecoder(in_channels,
                                                        num_classes,
                                                        mask_classification,
@@ -415,7 +425,8 @@ class MaskFormerHead(nn.Module):
                                                        dec_layers,
                                                        pre_norm,
                                                        mask_dim,
-                                                       enforce_input_project)
+                                                       enforce_input_project,
+                                                       num_feature_levels)
         return predictor
 
     def forward(self, features, mask=None):
@@ -424,7 +435,7 @@ class MaskFormerHead(nn.Module):
         # import pdb
         # pdb.set_trace()
         predictions, query_pos, query_src = self.predictor(multi_scale_features, mask_features, mask)
-        return predictions, query_pos, query_src
+        return predictions, query_pos, query_src, multi_scale_features
 
         # query_pos, query_src = self.predictor(multi_scale_features, mask_features, mask)
         # return query_pos, query_src
@@ -493,7 +504,7 @@ class MaskFormerModel(nn.Module):
             raise NotImplementedError
 
         features = self.backbone(inputs)
-        outputs, query_pos, query_src = self.sem_seg_head(features)
+        outputs, query_pos, query_src, pixel_decoder_features = self.sem_seg_head(features)
         # query_pos, query_src = self.sem_seg_head(features)
 
         # if need_reshape:
@@ -504,7 +515,7 @@ class MaskFormerModel(nn.Module):
         #     if query_src is not None:
         #         query_src = query_src.view(b, t, *query_src.shape[-3:]).transpose(1, 2).contiguous()
 
-        return outputs, query_pos, query_src, features
+        return outputs, query_pos, query_src, features, pixel_decoder_features
         # return query_pos, query_src
 
 if __name__ == '__main__':

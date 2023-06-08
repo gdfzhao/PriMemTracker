@@ -47,7 +47,7 @@ INPUT:
 TRAIN:
   LOG_DIR: 'logs'
   CKPT_DIR: 'ckpt'  
-  BATCH_SIZE: 24
+  BATCH_SIZE: 4
   WORKERS: 8
   EPOCH: 300
 SOLVER:

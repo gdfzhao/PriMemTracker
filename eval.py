@@ -30,6 +30,8 @@ parser = ArgumentParser()
 parser.add_argument('--model', default='./saves/XMem.pth')
 parser.add_argument('--IS_model', help='Path to pretrained network weight only')
 parser.add_argument('--expand_mask', action='store_true')
+parser.add_argument('--use_pixel_decoder', action='store_true')
+parser.add_argument('--share_backbone', action='store_true')
 parser.add_argument('--train', default=False)
 
 # Data options

@@ -211,7 +211,8 @@ class MultiScaleMaskedTransformerDecoder(nn.Module):
         dec_layers=10,
         pre_norm=False,
         mask_dim=256,
-        enforce_input_project=False
+        enforce_input_project=False,
+        num_feature_levels=3,
     ):
         super().__init__()
 
@@ -266,7 +267,7 @@ class MultiScaleMaskedTransformerDecoder(nn.Module):
         self.query_embed = nn.Embedding(num_queries, hidden_dim)
 
         # level embedding (we always use 3 scales)
-        self.num_feature_levels = 3
+        self.num_feature_levels = num_feature_levels
         self.level_embed = nn.Embedding(self.num_feature_levels, hidden_dim)
         self.input_proj = nn.ModuleList()
         for _ in range(self.num_feature_levels):
@@ -338,7 +339,8 @@ class MultiScaleMaskedTransformerDecoder(nn.Module):
             output = self.transformer_ffn_layers[i](
                 output
             )
-
+            # import pdb
+            # pdb.set_trace()
             outputs_class, outputs_mask, attn_mask = self.forward_prediction_heads(output, mask_features, attn_mask_target_size=size_list[(i + 1) % self.num_feature_levels])
             predictions_class.append(outputs_class)
             predictions_mask.append(outputs_mask)
@@ -352,8 +354,8 @@ class MultiScaleMaskedTransformerDecoder(nn.Module):
                 predictions_class if self.mask_classification else None, predictions_mask
             )
         }
+        # return out, query_embed, output
         return out, self.query_embed.weight.unsqueeze(1).repeat(1, bs, 1), self.query_feat.weight.unsqueeze(1).repeat(1, bs, 1)
-        # return self.query_embed.weight.unsqueeze(1).repeat(1, bs, 1), self.query_feat.weight.unsqueeze(1).repeat(1, bs, 1)
 
     def forward_prediction_heads(self, output, mask_features, attn_mask_target_size):
         decoder_output = self.decoder_norm(output)

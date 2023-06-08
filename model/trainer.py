@@ -57,7 +57,7 @@ class XMemTrainer:
         else:
             self.optimizer = optim.AdamW(
                 [{'params': filter(lambda p: p.requires_grad, self.XMem.parameters()), 'lr': config['lr']},
-                 {'params': filter(lambda p: p.requires_grad, self.Mask2Former.parameters()), 'lr': config['lr']}],
+                 {'params': filter(lambda p: p.requires_grad, self.Mask2Former.parameters()), 'lr': config['lr'] / 10}],
                 weight_decay=config['weight_decay'])
         self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizer, config['steps'], config['gamma'])
         if config['amp']:
@@ -186,8 +186,14 @@ class XMemTrainer:
 
             # --------------------- * ----------------------
             if self.config['use_IS']:
-                outputs, query_pos, query_src, features = self.Mask2Former(frames)
+                outputs, query_pos, query_src, features, pixel_decoder_features = self.Mask2Former(frames)
                 key, shrinkage, selection, f16, f8, f4 = self.XMem('enhance_key', frames, query_pos, query_src, features)  # [bs, 64, 8, 24, 24]
+
+                if self.config['use_pixel_decoder']:
+                    b, t = f16.shape[:2]
+                    pixel_decoder_features = [pf.view(b, t, *pf.shape[-3:]) for pf in pixel_decoder_features]
+                else:
+                    pixel_decoder_features = None
                 # import pdb
                 # pdb.set_trace()
                 # ori_images = data['info']['ori_images']
@@ -239,8 +245,8 @@ class XMemTrainer:
                 # Segment frame ti
                 memory_readout = self.XMem('read_memory', key[:,:,ti], selection[:,:,ti] if selection is not None else None, 
                                         ref_keys, ref_shrinkage, ref_values)
-                hidden, logits, masks = self.XMem('segment', (f16[:,ti], f8[:,ti], f4[:,ti]), memory_readout, 
-                        hidden, selector, h_out=(ti < (self.num_frames-1)))
+                hidden, logits, masks = self.XMem('segment', (f16[:,ti], f8[:,ti], f4[:,ti]), [p[:,ti] for p in pixel_decoder_features] if self.config['use_pixel_decoder'] else None,
+                                                  memory_readout, hidden, selector, h_out=(ti < (self.num_frames-1)))
                 # import pdb
                 # pdb.set_trace()
 
@@ -326,7 +332,7 @@ class XMemTrainer:
                 'scheduler': self.scheduler.state_dict()}
             torch.save(checkpoint, checkpoint_path)
         else:
-            checkpoint_path = f'{self.save_path}_checkpoint_withIS_{it}.pth'
+            checkpoint_path = f'{self.save_path}_checkpoint_with_IS_{it}.pth'
             checkpoint = {
                 'it': it,
                 'network': {'XMem': self.XMem.module.state_dict(), 'Mask2Former': self.Mask2Former.module.state_dict()},

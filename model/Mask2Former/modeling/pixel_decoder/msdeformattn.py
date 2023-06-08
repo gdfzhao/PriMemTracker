@@ -181,8 +181,10 @@ class MSDeformAttnPixelDecoder(nn.Module):
         # deformable transformer encoder args
         transformer_in_features= ["res3", "res4", "res5"],
         common_stride=4,
+        num_feature_levels=3,
     ):
         super().__init__()
+
         # backbone中["res3", "res4", "res5"]特征层的(channel, stride), eg. [(32,4), (64, 8),(128, 16),(256, 32)]
         transformer_input_shape = {k: v for k, v in input_shape.items() if k in transformer_in_features} 
         
@@ -238,7 +240,7 @@ class MSDeformAttnPixelDecoder(nn.Module):
         )
         weight_init.c2_xavier_fill(self.mask_features)
         
-        self.maskformer_num_feature_levels = 3  # always use 3 scales
+        self.maskformer_num_feature_levels = num_feature_levels # always use 3 scales
         self.common_stride = common_stride
 
         # extra fpn levels
@@ -309,7 +311,8 @@ class MSDeformAttnPixelDecoder(nn.Module):
             y = cur_fpn + F.interpolate(out[-1], size=cur_fpn.shape[-2:], mode="bilinear", align_corners=False)
             y = output_conv(y)
             out.append(y)
-
+        # import pdb
+        # pdb.set_trace()
         for o in out:
             if num_cur_levels < self.maskformer_num_feature_levels:
                 multi_scale_features.append(o)

@@ -29,11 +29,16 @@ except ImportError:
 Arguments loading
 """
 parser = ArgumentParser()
-# parser.add_argument('--model', default='/dfs/data/VOS/XMem/saves/retrain_st2_w_ovis_s2/retrain_st2_w_ovis_s2_160000.pth')
-parser.add_argument('--model', default='/dfs/data/VOS/XMem/saves/XMem-s012.pth')
+parser.add_argument('--model', default='/dfs/data/VOS/XMem/saves/sharebackbone_IS_s3/sharebackbone_IS_s3_110000.pth')
+# parser.add_argument('--model', default='/dfs/data/VOS/XMem/saves/XMem-s012.pth')
 parser.add_argument('--IS_model', help='Path to pretrained network weight only',
-                    default=None)
+                    default="/dfs/data/VOS/XMem/saves/sharebackbone_IS_s3/sharebackbone_IS_s3_mask2former_110000.pth")
+# parser.add_argument('--IS_model', help='Path to pretrained network weight only',
+#                     default=None)
 parser.add_argument('--expand_mask', action='store_true')
+parser.add_argument('--use_pixel_decoder', action='store_true')
+parser.add_argument('--share_backbone', default=True)
+# parser.add_argument('--share_backbone', action='store_true')
 parser.add_argument('--train', default=False)
 
 # Data options
@@ -42,7 +47,7 @@ parser.add_argument('--d17_path', default='../DAVIS/2017')
 parser.add_argument('--y18_path', default='../YouTube2018')
 parser.add_argument('--y19_path', default='../YouTube')
 parser.add_argument('--lv_path', default='../long_video_set')
-parser.add_argument('--vot_path', default='/dfs/data/VOS/vots2023')
+parser.add_argument('--vot_path', default='/dfs/data/VOS/vot-test')
 # For generic (G) evaluation, point to a folder that contains "JPEGImages" and "Annotations"
 parser.add_argument('--generic_path')
 

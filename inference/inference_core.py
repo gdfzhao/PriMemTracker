@@ -60,8 +60,11 @@ class InferenceCore:
         ) and (not end)
         is_normal_update = (not self.deep_update_sync or not is_deep_update) and (not end)
 
+        pixel_decoder_features = None
         if self.Mask2Former is not None:
-            outputs, query_pos, query_src, features = self.Mask2Former(image)
+            outputs, query_pos, query_src, features, pixel_decoder_features = self.Mask2Former(image)
+            pixel_decoder_features = pixel_decoder_features if self.config['use_pixel_decoder'] else None
+
             key, shrinkage, selection, f16, f8, f4 = self.network.enhance_key(image, query_pos, query_src, features,
                                                                need_ek=(self.enable_long_term or need_segment),
                                                                need_sk=is_mem_frame
@@ -79,7 +82,7 @@ class InferenceCore:
             # import pdb
             # pdb.set_trace()
             memory_readout = self.memory.match_memory(key, selection).unsqueeze(0)
-            hidden, _, pred_prob_with_bg = self.network.segment(multi_scale_features, memory_readout, 
+            hidden, _, pred_prob_with_bg = self.network.segment(multi_scale_features, pixel_decoder_features, memory_readout,
                                     self.memory.get_hidden(), h_out=is_normal_update, strip_bg=False)
             # remove batch dim
             pred_prob_with_bg = pred_prob_with_bg[0]

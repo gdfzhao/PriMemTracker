@@ -137,7 +137,7 @@ class ResNet(nn.Module):
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
         self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
         self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
-
+        self.init_weights()
     def _make_layer(self, block, planes, blocks, stride=1):
         downsample = None
         if stride != 1 or self.inplanes != planes * block.expansion:
@@ -177,7 +177,7 @@ class ResNet(nn.Module):
         # url = model_urls['resnet{}'.format(num_layers)]
         # pretrained_state_dict = model_zoo.load_url(url, model_dir='/home/code/pytorch_model/')
         # print('=> loading pretrained model {}'.format(url))
-        pertained_model = r'/home/code/pytorch_model/resnet50-19c8e357.pth'
+        pertained_model = r'/root/.cache/torch/hub/checkpoints/resnet50-19c8e357.pth'
         pretrained_state_dict = torch.load(pertained_model)
 
         self.load_state_dict(pretrained_state_dict, strict=False)

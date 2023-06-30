@@ -24,6 +24,7 @@ from torch import distributed as dist
 from collections import OrderedDict
 import sys
 import itertools
+from tqdm import tqdm
 
 from modeling.MaskFormerModel import MaskFormerModel
 from utils.criterion import SetCriterion, Criterion
@@ -152,21 +153,27 @@ class MaskFormer():
 
     def train(self, train_sampler, data_loader, eval_loder, n_epochs):
         max_score = 0.6
+        #
+        # evaluator_score = self.evaluate(eval_loder)
+        # self.scheduler.step(evaluator_score)
+        # self.summary_writer.add_scalar('val_dice_score', evaluator_score)
+
         for epoch in range(self.start_epoch + 1, n_epochs):
             if train_sampler is not None:
                 train_sampler.set_epoch(epoch)
             self.train_epoch(data_loader, epoch)
-            evaluator_score = self.evaluate(eval_loder)
-            self.scheduler.step(evaluator_score)
-            self.summary_writer.add_scalar('val_dice_score', evaluator_score, epoch)
-            if evaluator_score > max_score:
-                max_score = evaluator_score
-                ckpt_path = os.path.join(self.save_folder, 'mask2former_Epoch{0}_dice{1}.pth'.format(epoch, max_score))
-                save_state = {'model': self.model.state_dict(),
-                              'lr': self.optim.param_groups[0]['lr'],
-                              'epoch': epoch}
-                torch.save(save_state, ckpt_path)
-                print('weights {0} saved success!'.format(ckpt_path))
+            if epoch % 5 == 0:
+                evaluator_score = self.evaluate(eval_loder)
+                self.scheduler.step(evaluator_score)
+                self.summary_writer.add_scalar('val_dice_score', evaluator_score, epoch)
+                if evaluator_score > max_score:
+                    max_score = evaluator_score
+                    ckpt_path = os.path.join(self.save_folder, 'mask2former_Epoch{0}_dice{1}.pth'.format(epoch, max_score))
+                    save_state = {'model': self.model.state_dict(),
+                                  'lr': self.optim.param_groups[0]['lr'],
+                                  'epoch': epoch}
+                    torch.save(save_state, ckpt_path)
+                    print('weights {0} saved success!'.format(ckpt_path))
         self.summary_writer.close()
 
     def train_epoch(self,data_loader, epoch):
@@ -231,11 +238,11 @@ class MaskFormer():
         # self.criterion.eval()
 
         dice_score = []        
-        for batch in eval_loder:
+        for batch in tqdm(eval_loder):
             inpurt_tensor = batch['images'].to(device=self.device, non_blocking=True)
             gt_mask = batch['masks'][0]
 
-            outputs = self.model(inpurt_tensor)
+            outputs, _, _ = self.model(inpurt_tensor)
             mask_cls_results = outputs["pred_logits"]
             mask_pred_results = outputs["pred_masks"]
             

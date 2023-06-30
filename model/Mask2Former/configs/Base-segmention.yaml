@@ -1,19 +1,25 @@
 MODEL:
   BACKBONE: 
     TYPE: 'resnet50'
-  PRETRAINED_WEIGHTS: 'ckpt/mask2former_resnet50.pth'  
-  IS_TRAINING: True  
+#  PRETRAINED_WEIGHTS: 'ckpt/mask2former_resnet50.pth'
+  PRETRAINED_WEIGHTS: None
+  IS_TRAINING: True
   RESNETS:
     DEPTH: 50
     STEM_OUT_CHANNELS: 64
     STRIDE_IN_1X1: False
     OUT_FEATURES: ["res2", "res3", "res4", "res5"]
 DATASETS:
-  TRAIN: 'dataset/training.odgt'
-  VALID: 'dataset/validation.odgt'
-  ROOT_DIR: '/dfs/data/VOS/XMem/model/Mask2Former/data'
-  PIXEL_MEAN: [0.485, 0.456, 0.406]
-  PIXEL_STD: [0.229, 0.224, 0.225]
+#  TRAIN: 'dataset/training.odgt'
+#  VALID: 'dataset/validation.odgt'
+#  ROOT_DIR: '/dfs/data/VOS/XMem/model/Mask2Former/data'
+#  PIXEL_MEAN: [0.485, 0.456, 0.406]
+#  PIXEL_STD: [0.229, 0.224, 0.225]
+  TRAIN: 'dataset/train_coco_fix.odgt'
+  VALID: 'dataset/val_coco.odgt'
+  ROOT_DIR: '/dfs/data/VOS/'
+  PIXEL_MEAN: [0.471, 0.448, 0.408]
+  PIXEL_STD:  [0.234, 0.239, 0.242]
 SOLVER:
   IMS_PER_BATCH: 16
   BASE_LR: 0.0001
@@ -47,9 +53,9 @@ INPUT:
 TRAIN:
   LOG_DIR: 'logs'
   CKPT_DIR: 'ckpt'  
-  BATCH_SIZE: 4
-  WORKERS: 8
-  EPOCH: 300
+  BATCH_SIZE: 8
+  WORKERS: 4
+  EPOCH: 100
 SOLVER:
   LR: 0.0001
   OPTIMIZER: "ADAMW"

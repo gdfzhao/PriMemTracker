@@ -14,9 +14,9 @@ Arguments loading
 """
 parser = ArgumentParser()
 parser.add_argument('--save_with_ori_img', default=True)
-parser.add_argument('--save_video', default=True)
+parser.add_argument('--save_video', action='store_true')
 parser.add_argument('--dataset', help='vots2023/vot-test', default='vots2023')
-parser.add_argument('--exp_dir', default=None)
+parser.add_argument('--exp_dir', default=None, type=str)
 parser.add_argument('--contrast_dir', help='Inputs are the exp dirs, split with , ', type=str, default=None)
 
 args = parser.parse_args()
@@ -104,6 +104,8 @@ def img2video(vis_root, save_dir):
 def img2video_files(video_files, save_dir):
     os.makedirs(save_dir, exist_ok=True)
     for root, video_name in video_files:
+            if os.path.exists(os.path.join(save_dir, '{}.mp4'.format(video_name))):
+                continue
             with open(os.path.join('../', DATASET, 'sequences', video_name, 'sequence'), 'r') as f:
                 txt = f.readlines()
                 for line in txt:
@@ -183,8 +185,8 @@ if CONTRAST_MODE:
     os.makedirs(target_dir, exist_ok=True)
 
     contrast_video_length = len(CONTRAST_DIR)
-    parallel_work(video_names, contrast_videos_files, CONTRAST_DIR, target_dir)
-    # contrast_videos_files(video_names, CONTRAST_DIR, target_dir)
+    # parallel_work(video_names, contrast_videos_files, CONTRAST_DIR, target_dir)
+    contrast_videos_files(video_names, CONTRAST_DIR, target_dir)
 
 
 # save_dir = os.path.join("output", DATASET, EXP_DIR + '_videos')

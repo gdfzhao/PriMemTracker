@@ -50,7 +50,7 @@ class XMem(nn.Module):
             self.key_encoder = KeyEncoder()
             # Projection from f16 feature space to key/value space
             self.key_proj = KeyProjection(1024, self.key_dim)
-        if not config['share_backbone']:
+        if config['use_IS'] and not config['share_backbone']:
             self.key_encoder = KeyEncoder()
 
         self.decoder = Decoder(self.value_dim, self.hidden_dim, self.config)
@@ -143,7 +143,7 @@ class XMem(nn.Module):
             raise NotImplementedError
 
         # whether share backbone
-        if self.config['share_backbone']:
+        if self.config['share_backbone'] and self.config['use_IS']:
             f16, f8, f4 = features['res4'], features['res3'], features['res2']
         else:
             f16, f8, f4 = self.key_encoder(frame)
@@ -263,11 +263,11 @@ class XMem(nn.Module):
 
     def segment(self, multi_scale_features, pixel_decoder_features, memory_readout,
                     hidden_state, selector=None, h_out=True, strip_bg=True):
-        use_pixel_decoder = self.config.get('use_pixel_decoder', False)
 
-        hidden_state, logits = self.decoder(*multi_scale_features, hidden_state, memory_readout, h_out=h_out,
+
+        hidden_state, _logits = self.decoder(*multi_scale_features, hidden_state, memory_readout, h_out=h_out,
                                             pixel_decoder_features=pixel_decoder_features)
-        prob = torch.sigmoid(logits)
+        prob = torch.sigmoid(_logits)
         if selector is not None:
             prob = prob * selector
 
@@ -415,6 +415,7 @@ class MaskFormerHead(nn.Module):
         enforce_input_project = False
         mask_classification = True
         num_feature_levels = 4 if cfg['use_pixel_decoder'] else 3
+        use_decoder_query = False if cfg['use_ori_query'] else True
         predictor = MultiScaleMaskedTransformerDecoder(in_channels,
                                                        num_classes,
                                                        mask_classification,
@@ -426,7 +427,8 @@ class MaskFormerHead(nn.Module):
                                                        pre_norm,
                                                        mask_dim,
                                                        enforce_input_project,
-                                                       num_feature_levels)
+                                                       num_feature_levels,
+                                                       use_decoder_query)
         return predictor
 
     def forward(self, features, mask=None):

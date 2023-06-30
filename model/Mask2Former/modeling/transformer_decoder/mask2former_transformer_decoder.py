@@ -213,12 +213,13 @@ class MultiScaleMaskedTransformerDecoder(nn.Module):
         mask_dim=256,
         enforce_input_project=False,
         num_feature_levels=3,
+        use_decoder_query=True
     ):
         super().__init__()
 
         assert mask_classification, "Only support mask classification model"
         self.mask_classification = mask_classification
-
+        self.use_decoder_query = use_decoder_query
         # positional encoding
         N_steps = hidden_dim // 2
         self.pe_layer = PositionEmbeddingSine(N_steps, normalize=True)
@@ -354,8 +355,10 @@ class MultiScaleMaskedTransformerDecoder(nn.Module):
                 predictions_class if self.mask_classification else None, predictions_mask
             )
         }
-        # return out, query_embed, output
-        return out, self.query_embed.weight.unsqueeze(1).repeat(1, bs, 1), self.query_feat.weight.unsqueeze(1).repeat(1, bs, 1)
+        if self.use_decoder_query:
+            return out, query_embed, output
+        else:
+            return out, self.query_embed.weight.unsqueeze(1).repeat(1, bs, 1), self.query_feat.weight.unsqueeze(1).repeat(1, bs, 1)
 
     def forward_prediction_heads(self, output, mask_features, attn_mask_target_size):
         decoder_output = self.decoder_norm(output)

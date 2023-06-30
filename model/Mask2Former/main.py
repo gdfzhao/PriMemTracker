@@ -14,12 +14,7 @@
 
 import argparse
 import os
-os.environ['CUDA_VISIBLE_DEVICES']='0,1' # 1,2,3,4
-os.environ['MASTER_ADDR'] = 'localhost'
 
-
-
-os.environ['MASTER_PORT'] = '5678'
 from fvcore.common.config import CfgNode
 from configs.config import Config
 import torch
@@ -27,8 +22,16 @@ from maskformer_train import MaskFormer
 from dataset.dataset import ADE200kDataset
 from Segmentation import Segmentation
 
-if torch.cuda.device_count() > 1:
-    torch.distributed.init_process_group(backend='nccl', init_method='env://', rank = 0, world_size = 1)
+os.environ['MASTER_ADDR'] = 'localhost'
+
+os.environ['MASTER_PORT'] = '5678'
+
+torch.distributed.init_process_group(backend='nccl', init_method='env://', rank = 0, world_size = 1)
+
+
+# if torch.cuda.device_count() > 1:
+#     torch.distributed.init_process_group(backend='nccl')
+#     print(f'CUDA Device count: {torch.cuda.device_count()}')
 
 def user_scattered_collate(batch):
     data = [item['images'] for item in batch]
@@ -62,6 +65,7 @@ def get_args():
 
 
 def train():
+
     cfg = get_args()
     dataset_train = ADE200kDataset(cfg.DATASETS.TRAIN, cfg, dynamic_batchHW=True)
     if cfg.ngpus > 1:
@@ -98,5 +102,5 @@ def segmentation_test():
     # return segmentation_handler
 
 if __name__ == '__main__':
-    train()
-    # segmentation_test()
+    # train()
+    segmentation_test()

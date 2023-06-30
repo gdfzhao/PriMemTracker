@@ -377,7 +377,9 @@ class XMemTrainer:
         src_dict = torch.load(path, map_location={'cuda:0': map_location})
         IS_src_dict = None
         if self.config['use_IS']:
-            IS_src_dict = torch.load("model/Mask2Former/ckpt/mask2former_resnet50.pth",
+            # IS_src_dict = torch.load("model/Mask2Former/ckpt/mask2former_resnet50.pth",
+            #                          map_location=map_location)
+            IS_src_dict = torch.load("/dfs/data/VOS/XMem/model/Mask2Former/ckpt/mask2former_Epoch40_dice0.6557618501400757.pth",
                                      map_location=map_location)
         self.load_network_in_memory(src_dict, IS_src_dict)
         print(f'Network weight loaded from {path}')

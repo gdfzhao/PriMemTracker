@@ -57,7 +57,7 @@ class Segmentation():
         self.visualize = ADEVisualize()
         self.model = MaskFormerModel(cfg)
 
-        pretrain_weights = cfg.MODEL.PRETRAINED_WEIGHTS
+        pretrain_weights = '/dfs/data/VOS/XMem/model/Mask2Former/ckpt/mask2former_Epoch40_dice0.6557618501400757.pth'
         assert os.path.exists(pretrain_weights), f'please check weights file: {cfg.MODEL.PRETRAINED_WEIGHTS}'
         self.load_model(pretrain_weights)
         
@@ -200,8 +200,7 @@ class Segmentation():
             inpurt_tensor, transformer_info = self.image_preprocess(np.array(img))       
 
             outputs, query_pos, query_src = self.model(inpurt_tensor)
-            import pdb
-            pdb.set_trace()
+
             mask_cls_results = outputs["pred_logits"]
             mask_pred_results = outputs["pred_masks"]
             
@@ -211,25 +210,27 @@ class Segmentation():
                 mode="bilinear",
                 align_corners=False,
             )
-            # pred_masks = self.semantic_inference(mask_cls_results, mask_pred_results)
-            pred_masks, scores, labels_per_image = self.instance_inference(mask_cls_results, mask_pred_results)
-            # instance
-            # [1, num_query, H, W]
-            # import pdb
-            # pdb.set_trace()
-            color_mask = np.zeros((pred_masks.shape[1], pred_masks.shape[2], 3))
-            pred_masks = pred_masks.float().cpu().numpy()
-            for instance_id in range(len(labels_per_image.cpu())):
-                ci = int(labels_per_image[instance_id]) % len(PALETTE)
-                color_mask[:, :, 0][pred_masks[instance_id] == 1] = PALETTE[ci][0]
-                color_mask[:, :, 1][pred_masks[instance_id] == 1] = PALETTE[ci][1]
-                color_mask[:, :, 2][pred_masks[instance_id] == 1] = PALETTE[ci][2]
 
-            color_mask = self.postprocess(color_mask, transformer_info, (img_width, img_height))
-            ori_img = cv2.imread(
-                os.path.join(image_path))
-            # color_mask = ori_img + color_mask * 0.5
-            cv2.imwrite(output_path, color_mask)
+            pred_masks = self.semantic_inference(mask_cls_results, mask_pred_results)
+
+            # pred_masks, scores, labels_per_image = self.instance_inference(mask_cls_results, mask_pred_results)
+            # # instance
+            # # [1, num_query, H, W]
+            # # import pdb
+            # # pdb.set_trace()
+            # color_mask = np.zeros((pred_masks.shape[1], pred_masks.shape[2], 3))
+            # pred_masks = pred_masks.float().cpu().numpy()
+            # for instance_id in range(len(labels_per_image.cpu())):
+            #     ci = int(labels_per_image[instance_id]) % len(PALETTE)
+            #     color_mask[:, :, 0][pred_masks[instance_id] == 1] = PALETTE[ci][0]
+            #     color_mask[:, :, 1][pred_masks[instance_id] == 1] = PALETTE[ci][1]
+            #     color_mask[:, :, 2][pred_masks[instance_id] == 1] = PALETTE[ci][2]
+            #
+            # color_mask = self.postprocess(color_mask, transformer_info, (img_width, img_height))
+            # ori_img = cv2.imread(
+            #     os.path.join(image_path))
+            # # color_mask = ori_img + color_mask * 0.5
+            # cv2.imwrite(output_path, color_mask)
 
 
             # mask_img = np.zeros((pred_masks.shape[1:]))
@@ -242,9 +243,9 @@ class Segmentation():
 
 
             # semantic
-            # mask_img = np.argmax(pred_masks, axis=1)[0]
-            # mask_img = self.postprocess(mask_img, transformer_info, (img_width, img_height))
-            # self.visualize.show_result(img, mask_img, output_path)
+            mask_img = np.argmax(pred_masks, axis=1)[0]
+            mask_img = self.postprocess(mask_img, transformer_info, (img_width, img_height))
+            self.visualize.show_result(img, mask_img, output_path)
 
 
             # v = Visualizer(np.array(img), ade20k_metadata, scale=1.2, instance_mode=ColorMode.IMAGE_BW)

@@ -15,6 +15,9 @@ class Configuration():
         parser.add_argument('--expand_mask', action='store_true')
         parser.add_argument('--use_pixel_decoder', action='store_true')
         parser.add_argument('--share_backbone', action='store_true')
+        parser.add_argument('--use_ori_query', action='store_true')
+        parser.add_argument('--fusion_mode', action='store_true')
+
         parser.add_argument('--train', help='while expand_mask is True and training process', default=True)
 
         # Data parameters

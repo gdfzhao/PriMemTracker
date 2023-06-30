@@ -22,16 +22,24 @@ try:
 except ImportError:
     print('Failed to import hickle. Fine if not using multi-scale testing.')
 
+import pickle as pkl
 
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 """
 Arguments loading
 """
 parser = ArgumentParser()
-parser.add_argument('--model', default='./saves/XMem.pth')
-parser.add_argument('--IS_model', help='Path to pretrained network weight only')
+parser.add_argument('--model', default='/dfs/data/VOS/XMem/saves/retrain_st3_w_ovis_IS_s3/retrain_st3_w_ovis_IS_s3_105000.pth')
+parser.add_argument('--IS_model', help='Path to pretrained network weight only',
+                    default="/dfs/data/VOS/XMem/saves/retrain_st3_w_ovis_IS_s3/retrain_st3_w_ovis_IS_s3_mask2former_105000.pth")
 parser.add_argument('--expand_mask', action='store_true')
 parser.add_argument('--use_pixel_decoder', action='store_true')
 parser.add_argument('--share_backbone', action='store_true')
+parser.add_argument('--use_ori_query', action='store_true')
+parser.add_argument('--save_result_for_fusion', action='store_true')
+
+# parser.add_argument('--fusion_mode', action='store_true')
+# parser.add_argument('--fusion_model_path', default='./saves/XMem-s012.pth')
 parser.add_argument('--train', default=False)
 
 # Data options
@@ -48,6 +56,8 @@ parser.add_argument('--dataset', help='D16/D17/Y18/Y19/LV1/LV3/G/VOT-TEST', defa
 parser.add_argument('--split', help='val/test', default='val')
 parser.add_argument('--output', default=None)
 parser.add_argument('--save_all', action='store_true', 
+            help='Save all frames. Useful only in YouTubeVOS/long-time video', )
+parser.add_argument('--save_all_vots', action='store_true',
             help='Save all frames. Useful only in YouTubeVOS/long-time video', )
 
 parser.add_argument('--benchmark', action='store_true', help='enable to disable amp for FPS benchmarking')
@@ -142,7 +152,10 @@ elif is_davis:
 elif is_vot:
     if args.dataset == 'VOT-TEST':
         # For vot dataset
-        meta_dataset = VOTTestDataset(args.vot_path, size=args.size)
+        if config['save_result_for_fusion'] or config['save_scores'] or config['save_all_vots']:
+            meta_dataset = VOTTestDataset(args.vot_path, imset='list.txt', size=args.size)
+        else:
+            meta_dataset = VOTTestDataset(args.vot_path, size=args.size)
         palette = None
     elif args.dataset == 'VOTS2023':
         raise NotImplementedError
@@ -185,6 +198,12 @@ if args.model is not None:
 else:
     print('No model loaded.')
 
+# if config['fusion_mode']:
+#     assert config['fusion_model_path'] is not None
+#     network_fusion = XMem(config, config['fusion_model_path']).cuda().eval()
+#     model_weights = torch.load(config['fusion_model_path'])
+#     network_fusion.load_weights(model_weights, init_as_zero_if_needed=True)
+
 total_process_time = 0
 total_frames = 0
 
@@ -211,9 +230,14 @@ def visualization(raw_mask, vid_name, frame, DATASET='vots2023'):
 # Start eval
 for vid_reader in progressbar(meta_loader, max_value=len(meta_dataset), redirect_stdout=False):
 
-    loader = DataLoader(vid_reader, batch_size=1, shuffle=False, num_workers=2)
+    loader = DataLoader(vid_reader, batch_size=1, shuffle=False, num_workers=0)
     vid_name = vid_reader.vid_name
     vid_length = len(loader)
+    first_gt_shape = vid_reader.first_gt_shape
+
+    if os.path.exists(path.join(out_path, vid_name)):
+        continue
+
     # if vid_name == "giraffe-15":
         # import pdb
         # pdb.set_trace()
@@ -229,10 +253,21 @@ for vid_reader in progressbar(meta_loader, max_value=len(meta_dataset), redirect
 
     mapper = MaskMapper()
     processor = InferenceCore(network, mask2former_model=mask2former_model, config=config)
+    # if config['fusion_mode']:
+    #     processor_fusion = InferenceCore(network_fusion, mask2former_model=None, config=config)
     first_mask_loaded = False
+
+    if config['save_result_for_fusion']:
+        # print("Bad")
+        # npy_result = torch.zeros([vid_length, msk.shape[0] + 1, msk.shape[1], msk.shape[2]])
+        # import pdb
+        # pdb.set_trace()
+        # npy_result = np.zeros([vid_length, first_gt_shape[0] + 1, first_gt_shape[-2], first_gt_shape[-1]])
+        npy_result = []
 
     for ti, data in enumerate(loader):
         with torch.cuda.amp.autocast(enabled=not args.benchmark):
+
             rgb = data['rgb'].cuda()[0]
             msk = data.get('mask')
             info = data['info']
@@ -268,6 +303,8 @@ for vid_reader in progressbar(meta_loader, max_value=len(meta_dataset), redirect
                 if need_resize:
                     msk = vid_reader.resize_mask(msk.unsqueeze(0))[0]
                 processor.set_all_labels(list(mapper.remappings.values()))
+                # if config['fusion_mode']:
+                #     processor_fusion.set_all_labels(list(mapper.remappings.values()))
             else:
                 labels = None
 
@@ -275,8 +312,16 @@ for vid_reader in progressbar(meta_loader, max_value=len(meta_dataset), redirect
             # import ipdb
             # ipdb.set_trace()
             # shape:[num_objects + bg(1), H, W]
-            prob = processor.step(rgb, msk, labels, end=(ti==vid_length-1))
+            # if config['fusion_mode']:
+            #     prob_fusion, logits_fusion = processor_fusion.step(rgb, msk, labels, end=(ti == vid_length - 1))
+            #     prob, logits = processor.step(rgb, msk, labels, end=(ti == vid_length - 1))
+            #     prob = 0.5 * prob + 0.5 * prob_fusion
+            #     # import pdb
+            #     # pdb.set_trace()
 
+            prob, _ = processor.step(rgb, msk, labels, end=(ti==vid_length-1))
+                # import pdb
+                # pdb.set_trace()
             # Upsample to original size if needed
             if need_resize:
                 prob = F.interpolate(prob.unsqueeze(1), shape, mode='bilinear', align_corners=False)[:,0]
@@ -296,8 +341,16 @@ for vid_reader in progressbar(meta_loader, max_value=len(meta_dataset), redirect
             if args.save_scores:
                 prob = (prob.detach().cpu().numpy()*255).astype(np.uint8)
 
+            if config['save_result_for_fusion']:
+                # import pdb
+                # pdb.set_trace()
+                # npy_result[ti, ...] = prob
+
+                prob = (prob.detach().cpu().numpy()).astype(np.float32)
+                # npy_result[ti, ...] = prob
+                npy_result.append(prob)
             # Save the mask
-            if args.save_all or info['save'][0]:
+            if args.save_all or args.save_all_vots:
                 this_out_path = path.join(out_path, vid_name)
                 os.makedirs(this_out_path, exist_ok=True)
                 out_mask = mapper.remap_index_mask(out_mask)
@@ -316,11 +369,23 @@ for vid_reader in progressbar(meta_loader, max_value=len(meta_dataset), redirect
                 np_path = path.join(args.output, 'Scores', vid_name)
                 os.makedirs(np_path, exist_ok=True)
                 if ti==len(loader)-1:
-                    hkl.dump(mapper.remappings, path.join(np_path, f'backward.hkl'), mode='w')
+                    # hkl.dump(mapper.remappings, path.join(np_path, f'backward.hkl'), mode='w')
+                    f = open(path.join(np_path, f'backward.pkl'), 'wb')
+                    pkl.dump(mapper.remappings, f)
                 if args.save_all or info['save'][0]:
-                    hkl.dump(prob, path.join(np_path, f'{frame[:-4]}.hkl'), mode='w', compression='lzf')
+                    # hkl.dump(prob, path.join(np_path, f'{frame[:-4]}.hkl'), mode='w', compression='lzf')
+                    f = open(path.join(np_path, f'{frame[:-4]}.pkl'), 'wb')
+                    pkl.dump(prob, f)
 
-
+    if config['save_result_for_fusion']:
+        npy_result_path = path.join(out_path, 'pth')
+        os.makedirs(path.join(npy_result_path), exist_ok=True)
+        # np.save(path.join(npy_result_path, vid_name + '.npy'), npy_result)
+        # torch.save(npy_result, path.join(npy_result_path, vid_name + '.pt'))
+        # hkl.dump(npy_result, path.join(npy_result_path, vid_name + '.hkl'), mode='w', compression='lzf')
+        f = open(path.join(npy_result_path, vid_name + '.pkl'), 'wb')
+        pkl.dump(prob, f)
+        del npy_result
 print(f'Total processing time: {total_process_time}')
 print(f'Total processed frames: {total_frames}')
 print(f'FPS: {total_frames / total_process_time}')

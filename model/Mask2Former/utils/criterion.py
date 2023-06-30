@@ -196,8 +196,8 @@ class SetCriterion(nn.Module):
         # ===================================================================================
         point_logits = src_masks.flatten(1)    # shape:(n_preds, w/4, h/4) max:30+
         point_labels = target_masks.flatten(1)   # shape:(n_preds, w/4, h/4) max:1
-        import pdb
-        pdb.set_trace()
+        # import pdb
+        # pdb.set_trace()
         losses = {
             "loss_mask": sigmoid_ce_loss(point_logits, point_labels, num_masks), # sigmoid_focal_loss(point_logits, point_labels, num_masks), # 
             "loss_dice": dice_loss(point_logits, point_labels, num_masks)
@@ -239,8 +239,8 @@ class SetCriterion(nn.Module):
              outputs: dict of tensors, see the output specification of the model for the format
              gt_masks: [bs, h_net_output, w_net_output]
         """
-        import pdb
-        pdb.set_trace()
+        # import pdb
+        # pdb.set_trace()
         # outputs (pred_logits:(bs, num_q, 151), pred_masks:(bs, num_q, w/4, h/4))
         outputs_without_aux = {k: v for k, v in outputs.items() if k != "aux_outputs"}
         targets = self._get_targets(gt_masks)   # bs * [masks:(num_gt, w/4, h/4), max:1; labels:(num_gt)]

@@ -9,7 +9,8 @@ class InferenceCore:
     def __init__(self, network:XMem, mask2former_model=None, config=None):
         self.config = config
         self.network = network
-
+        # if config['fusion_mode']:
+        #     self.fusion_model = config['fusion_model_path']
         self.Mask2Former = mask2former_model
         self.mem_every = config['mem_every']
         self.deep_update_every = config['deep_update_every']
@@ -78,12 +79,15 @@ class InferenceCore:
         multi_scale_features = (f16, f8, f4)
 
         # segment the current frame is needed
+        logits = None
         if need_segment:
             # import pdb
             # pdb.set_trace()
             memory_readout = self.memory.match_memory(key, selection).unsqueeze(0)
-            hidden, _, pred_prob_with_bg = self.network.segment(multi_scale_features, pixel_decoder_features, memory_readout,
+
+            hidden, logits, pred_prob_with_bg = self.network.segment(multi_scale_features, pixel_decoder_features, memory_readout,
                                     self.memory.get_hidden(), h_out=is_normal_update, strip_bg=False)
+
             # remove batch dim
             pred_prob_with_bg = pred_prob_with_bg[0]
             pred_prob_no_bg = pred_prob_with_bg[1:]
@@ -126,4 +130,4 @@ class InferenceCore:
                 self.memory.set_hidden(hidden)
                 self.last_deep_update_ti = self.curr_ti
                 
-        return unpad(pred_prob_with_bg, self.pad)
+        return unpad(pred_prob_with_bg, self.pad), logits

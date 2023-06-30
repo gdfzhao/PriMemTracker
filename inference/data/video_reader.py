@@ -41,7 +41,7 @@ class VideoReader(Dataset):
         self.palette = Image.open(path.join(mask_dir, sorted([file for file in os.listdir(mask_dir) if file[-4:] == '.png'])[0])).getpalette()
 
         self.first_gt_path = path.join(self.mask_dir, sorted([file for file in os.listdir(self.mask_dir) if file[-4:] == '.png'])[0])
-
+        self.first_gt_shape = self.get_one_hot_shape(self.first_gt_path)
         if size < 0:
             self.im_transform = transforms.Compose([
                 transforms.ToTensor(),
@@ -96,6 +96,12 @@ class VideoReader(Dataset):
         min_hw = min(h, w)
         return F.interpolate(mask, (int(h/min_hw*self.size), int(w/min_hw*self.size)), 
                     mode='nearest')
+
+    def get_one_hot_shape(self, gt_path):
+        gt = np.array(Image.open(self.first_gt_path).convert('P'))
+        num_objects = int(gt.max())
+        # img_shape = gt.shape[-2:]
+        return (num_objects, gt.shape[-2], gt.shape[-1])
 
     def get_palette(self):
         return self.palette
